@@ -1,2 +1,2 @@
 Toy kit for speech therapy.
-# Dhwani-ToyKit
+# dhwani-ToyKit
