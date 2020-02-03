@@ -1,121 +1,109 @@
-#include <Arduino.h>
-#include <MFRC522.h>
+/**
+ * --------------------------------------------------------------------------------------------------------------------
+ * Example sketch/program showing how to read data from more than one PICC to serial.
+ * --------------------------------------------------------------------------------------------------------------------
+ * This is a MFRC522 library example; for further details and other examples see: https://github.com/miguelbalboa/rfid
+ *
+ * Example sketch/program showing how to read data from more than one PICC (that is: a RFID Tag or Card) using a
+ * MFRC522 based RFID Reader on the Arduino SPI interface.
+ *
+ * Warning: This may not work! Multiple devices at one SPI are difficult and cause many trouble!! Engineering skill
+ *          and knowledge are required!
+ *
+ * @license Released into the public domain.
+ *
+ * Typical pin layout used:
+ * -----------------------------------------------------------------------------------------
+ *             MFRC522      Arduino       Arduino   Arduino    Arduino          Arduino
+ *             Reader/PCD   Uno/101       Mega      Nano v3    Leonardo/Micro   Pro Micro
+ * Signal      Pin          Pin           Pin       Pin        Pin              Pin
+ * -----------------------------------------------------------------------------------------
+ * RST/Reset   RST          9             5         D9         RESET/ICSP-5     RST
+ * SPI SS 1    SDA(SS)      ** custom, take a unused pin, only HIGH/LOW required **
+ * SPI SS 2    SDA(SS)      ** custom, take a unused pin, only HIGH/LOW required **
+ * SPI MOSI    MOSI         11 / ICSP-4   51        D11        ICSP-4           16
+ * SPI MISO    MISO         12 / ICSP-1   50        D12        ICSP-1           14
+ * SPI SCK     SCK          13 / ICSP-3   52        D13        ICSP-3           15
+ *
+ */
+
 #include <SPI.h>
+#include <MFRC522.h>
 
-#define RST_PIN 9
-#define NO_OF_READERS   2
-int interruptPins[NO_OF_READERS] = {2,3};
-int ssPins[NO_OF_READERS] = {4,5};
-volatile bool interrups[NO_OF_READERS] = {false, false};
-volatile bool oldState[NO_OF_READERS] = {true, true};
-volatile bool newState[NO_OF_READERS] = {true, true};
-MFRC522 mfrc522[NO_OF_READERS];
-byte regVal = 0x7F;
+#define RST_PIN         9          // Configurable, see typical pin layout above
+#define SS_1_PIN        10         // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 2
+#define SS_2_PIN        8          // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 1
 
-/*
- * The function sending to the MFRC522 the needed commands to activate the reception
+#define NR_OF_READERS   2
+
+byte ssPins[] = {SS_1_PIN, SS_2_PIN};
+char* tag;
+
+MFRC522 mfrc522[NR_OF_READERS];   // Create MFRC522 instance.
+
+/**
+ * Initialize.
  */
-void activateRec(MFRC522 mfrc522) {
-  mfrc522.PCD_WriteRegister(mfrc522.FIFODataReg, mfrc522.PICC_CMD_REQA);
-  mfrc522.PCD_WriteRegister(mfrc522.CommandReg, mfrc522.PCD_Transceive);
-  mfrc522.PCD_WriteRegister(mfrc522.BitFramingReg, 0x87);
-}
-
-/*
- * The function to clear the pending interrupt bits after interrupt serving routine
- */
-void clearInt(MFRC522 mfrc522) {
-  mfrc522.PCD_WriteRegister(mfrc522.ComIrqReg, 0x7F);
-}
-
-void dump_byte_array(byte *buffer, byte bufferSize) {
-  for (byte i = 0; i < bufferSize; i++) {
-    Serial.print(buffer[i] < 0x10 ? " 0" : " ");
-    Serial.print(buffer[i], HEX);
-  }
-}
-
-void isr() {
-  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
-    newState[reader] = digitalRead(interruptPins[reader]);
-    if (oldState[reader] != newState[reader]) interrups[reader] = true;
-    oldState[reader] = newState[reader];
-  }
-}
-
 void setup() {
-  Serial.begin(9600);
-  while (!Serial);      // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
-  SPI.begin();          // Init SPI bus
 
-  Serial.print("Reading tags...");
+  Serial.begin(9600); // Initialize serial communications with the PC
+  while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
 
-  regVal = 0xA0; //rx irq
-  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
+  SPI.begin();        // Init SPI bus
+
+  for (uint8_t reader = 0; reader < NR_OF_READERS; reader++) {
     mfrc522[reader].PCD_Init(ssPins[reader], RST_PIN); // Init each MFRC522 card
-    mfrc522[reader].PCD_WriteRegister(mfrc522[reader].ComIEnReg, regVal);
     Serial.print(F("Reader "));
     Serial.print(reader);
     Serial.print(F(": "));
     mfrc522[reader].PCD_DumpVersionToSerial();
-    pinMode(interruptPins[reader], INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(interruptPins[reader]), isr, FALLING);
   }
 }
 
+/**
+ * Main loop.
+ */
 void loop() {
-  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
-    if(interrups[reader]) {
-      Serial.print(F("Interrupt. "));
-      mfrc522[reader].PICC_ReadCardSerial(); //read the tag data
-      // Show some details of the PICC (that is: the tag/card)
-      Serial.print(F("Card UID:"));
-      dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
-      Serial.println();
 
-      clearInt(mfrc522[reader]);
+  for (uint8_t reader = 0; reader < NR_OF_READERS; reader++) {
+    // Look for new cards
+
+    if (mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()) {
+      Serial.print(F("Reader "));
+      Serial.print(reader);
+      // Show some details of the PICC (that is: the tag/card)
+      Serial.print(F(": Card UID:"));
+      dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
+//      for (byte i = 0; i < mfrc522[reader].uid.size; i++) {
+
+//    Serial.print(tag[i]);
+//  }
+      Serial.println();
+     // Serial.print(F("PICC type: "));
+    //  MFRC522::PICC_Type piccType = mfrc522[reader].PICC_GetType(mfrc522[reader].uid.sak);
+     // Serial.println(mfrc522[reader].PICC_GetTypeName(piccType));
+
+      // Halt PICC
       mfrc522[reader].PICC_HaltA();
-      interrups[reader] = false;
-    }
-    activateRec(mfrc522[reader]);
-  }
+      // Stop encryption on PCD
+      mfrc522[reader].PCD_StopCrypto1();
+    } //if (mfrc522[reader].PICC_IsNewC
+  } //for(uint8_t reader
 }
 
-
-
-
-
-
-
-
-
-
-
-
-// void readTag() {
-//   if()
-// }
-//
-// void setup() {
-//   Serial.begin(9600);
-//   while (!Serial);      // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
-//   SPI.begin();          // Init SPI bus
-//
-//   Serial.print("Reading tags...");
-//   for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
-//     mfrc522[reader].PCD_Init(sdaPin[reader], RST_PIN); // Init each MFRC522 card
-//     mfrc522[reader].PCD_WriteRegister(mfrc522[reader].ComIEnReg, regVal);
-//     Serial.print(F("Reader "));
-//     Serial.print(reader);
-//     Serial.print(F(": "));
-//     mfrc522[reader].PCD_DumpVersionToSerial();
-//     pinMode(readerPin[reader], INPUT_PULLUP);
-//     PCintPort::attachInterrupt(readerInterrruptPin[reader], readTag, CHANGE);
-//   }
-// }
-//
-// void loop() {
-//   for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
-//     Serial.print(tag[reader] + '\t');
-//   }
-// }
+/**
+ * Helper routine to dump a byte array as hex values to Serial.
+ */
+void dump_byte_array(byte *buffer, byte bufferSize) {
+  byte tag = '\0';
+  for (byte i = 0; i < bufferSize; i++) {
+    tag = tag + char(buffer[i]);
+  }
+  Serial.print(tag);
+  
+//  return tag;
+// Serial.print(Tag,HEX);
+//    Serial.print(buffer[i] < 0x10 ? " 0" : "_");
+//    Serial.print(buffer[i], HEX);
+  
+}
