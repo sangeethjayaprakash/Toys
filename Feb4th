@@ -1,0 +1,95 @@
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define RST_PIN         9          // Configurable, see typical pin layout above
+#define SS_1_PIN        10         // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 2
+#define SS_2_PIN        8
+#define SS_3_PIN        7
+#define SS_4_PIN        6
+
+
+#define NO_OF_READERS   4
+
+byte ssPins[] = {SS_1_PIN, SS_2_PIN, SS_3_PIN, SS_4_PIN};
+byte tags[NO_OF_READERS];
+byte state = 0;
+byte atqa_answer[2];
+byte atqa_size = 2;
+
+MFRC522 mfrc522[NO_OF_READERS];   // Create MFRC522 instance.
+
+/**
+ * Helper routine to dump a byte array as hex values to Serial.
+ */
+byte dump_byte_array(byte *buffer, byte bufferSize) {
+  byte tag = '\0';
+  for (byte i = 0; i < bufferSize; i++)
+    tag = tag + char(buffer[i]);
+  return tag;
+}
+
+/**
+ * Initialize.
+ */
+void setup() {
+
+  Serial.begin(9600); // Initialize serial communications with the PC
+  while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
+
+  SPI.begin();        // Init SPI bus
+
+  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
+    mfrc522[reader].PCD_Init(ssPins[reader], RST_PIN); // Init each MFRC522 card
+    Serial.print(F("Reader "));
+    Serial.print(reader);
+    Serial.print(F(": "));
+    mfrc522[reader].PCD_DumpVersionToSerial();
+  }
+}
+
+/**
+ * Main loop.
+ */
+void loop() {
+  
+  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
+    // Look for new cards
+//  tags[reader] = 0;
+  //mfrc522[reader].PICC_WakeupA(atqa_answer, &atqa_size);
+  
+    if (mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()) {
+//      Serial.print(F("Reader "));
+//      Serial.print(reader);
+      // Show some details of the PICC (that is: the tag/card)
+//      Serial.print(F(": Card UID:"));
+      tags[reader] = dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
+//      Serial.print(tags[reader]);
+      
+//      Serial.println();
+
+      // Halt PICC
+    mfrc522[reader].PICC_HaltA();
+      // Stop encryption on PCD
+    mfrc522[reader].PCD_StopCrypto1();
+    } //if (mfrc522[reader].PICC_IsNewC
+//    else 
+//    if (! mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()){
+//      tags[reader] = 0;
+////      tags[reader] = dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
+//      Serial.print(tags[reader]);    
+//    }
+      
+  } //for(uint8_t reader
+
+//  state = tags[0] + tags[1] + tags[2] + tags[3];
+//  Serial.print("Current State:");
+//  Serial.println(state);
+
+//for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
+//  Serial.print(tags[reader]);
+//  Serial.print('\t');
+//  tags[reader] = 0;
+//}
+Serial.println();
+delay(500);
+}
