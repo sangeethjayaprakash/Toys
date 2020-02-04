@@ -32,11 +32,14 @@
 
 #define RST_PIN         9          // Configurable, see typical pin layout above
 #define SS_1_PIN        10         // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 2
-#define SS_2_PIN        8          // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 1
+#define SS_2_PIN        8
+#define SS_3_PIN        7
+#define SS_4_PIN        6
 
-#define NO_OF_READERS   2
 
-byte ssPins[] = {SS_1_PIN, SS_2_PIN};
+#define NO_OF_READERS   4
+
+byte ssPins[] = {SS_1_PIN, SS_2_PIN, SS_3_PIN, SS_4_PIN};
 byte tags[NO_OF_READERS];
 
 MFRC522 mfrc522[NO_OF_READERS];   // Create MFRC522 instance.
@@ -96,5 +99,5 @@ void loop() {
   } //for(uint8_t reader
 
 
-  
+
 }
