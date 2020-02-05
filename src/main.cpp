@@ -30,7 +30,7 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Adafruit_NeoPixel.h>
-
+#include <SoftwareSerial.h>
 
 // Which pin on the Arduino is connected to the NeoPixels?
 #define PIN 4// On Trinket or Gemma, suggest changing this to 1
@@ -38,13 +38,13 @@
 // How many NeoPixels are attached to the Arduino?
 #define NUMPIXELS 16 // Popular NeoPixel ring size
 
-// When setting up the NeoPixel library, we tell it how many pixels,
+// When setting up the NeoPixel library, we tell it how many Pixels,
 // and which pin to use to send signals. Note that for older NeoPixel
 // strips you might need to change the third parameter -- see the
 // strandtest example for more information on possible values.
-Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_RGBW+ NEO_KHZ800);
+Adafruit_NeoPixel Pixels(NUMPIXELS, PIN, NEO_RGBW+ NEO_KHZ800);
 
-#define DELAYVAL 25 // Time (in milliseconds) to pause between pixels
+#define DELAYVAL 25 // Time (in milliseconds) to pause between Pixels
 
 #define RST_PIN         9          // Configurable, see typical pin layout above
 #define SS_1_PIN        10         // Configurable, take a unused pin, only HIGH/LOW required, must be diffrent to SS 2
@@ -55,34 +55,64 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_RGBW+ NEO_KHZ800);
 
 #define NO_OF_READERS   4
 
-byte ssPins[] = {SS_1_PIN, SS_2_PIN, SS_3_PIN, SS_4_PIN};
+byte ssPins[] = {
+  SS_1_PIN,
+  SS_2_PIN,
+  SS_3_PIN,
+  SS_4_PIN
+};
 byte tags[NO_OF_READERS];
 byte prev_state = 0;
 byte curr_state = 0;
-String animal = "\0";
+String detected_toy = "\0";
+String correct_toy = "\0";
 
 MFRC522 mfrc522[NO_OF_READERS];   // Create MFRC522 instance.
 
-/**
-   Helper routine to dump a byte array as hex values to Serial.
-*/
+byte bluetoothTx = 2; // D2 to TXD
+byte bluetoothRx = 3; // D3 to RXD  (Warning! See Text)
+
+SoftwareSerial bluetooth(bluetoothTx, bluetoothRx);
+
+void neopixel() {
+
+  Pixels.clear(); // Set all pixel colors to 'off'
+
+  // The first NeoPixel in a strand is #0, second is 1, all the way up
+  // to the count of Pixels minus one.
+  
+  for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
+    // Pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    Pixels.setPixelColor(j, Pixels.Color(0, 150, 0));
+    Pixels.show();   // Send the updated pixel colors to the hardware.
+    delay(DELAYVAL); // Pause before next pass through loop
+  }
+
+  for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
+    // Pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
+    // Here we're using a moderately bright green color:
+    Pixels.setPixelColor(j, Pixels.Color(0, 0, 0));
+    Pixels.show();   // Send the updated pixel colors to the hardware.
+    delay(DELAYVAL); // Pause before next pass through loop
+  }
+}
+
 byte dump_byte_array(byte *buffer, byte bufferSize) {
+
   byte tag = '\0';
   for (byte i = 0; i < bufferSize; i++)
     tag = tag + char(buffer[i]);
   return tag;
 }
 
-/**
-   Initialize.
-*/
 void setup() {
 
   Serial.begin(9600); // Initialize serial communications with the PC
   while (!Serial);    // Do nothing if no serial port is opened (added for Arduinos based on ATMEGA32U4)
-
   SPI.begin();        // Init SPI bus
-   pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  Pixels.begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  bluetooth.begin(9600);
 
   for (uint8_t reader = 0; reader < NO_OF_READERS; reader++) {
     mfrc522[reader].PCD_Init(ssPins[reader], RST_PIN); // Init each MFRC522 card
@@ -93,81 +123,58 @@ void setup() {
   }
 }
 
-/**
-   Main loop.
-*/
 void loop() {
-  prev_state = curr_state;
-  for (uint8_t reader = 0; reader < NO_OF_READERS; reader++){
-    mfrc522[reader].PCD_Init();
-    if (mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()) {
-      tags[reader] = dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
+
+  if (bluetooth.available()) {
+    correct_toy = (char)bluetooth.read();
+    prev_state = curr_state;
+    for (uint8_t reader = 0; reader < NO_OF_READERS; reader++){
+      mfrc522[reader].PCD_Init();
+      if (mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()) {
+        tags[reader] = dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
 
 
-      // Halt PICC
-      mfrc522[reader].PICC_HaltA();
-      // Stop encryption on PCD
-      mfrc522[reader].PCD_StopCrypto1();
+        // Halt PICC
+        mfrc522[reader].PICC_HaltA();
+        // Stop encryption on PCD
+        mfrc522[reader].PCD_StopCrypto1();
+      }
+      //if (mfrc522[reader].PICC_IsNewC
+      else {
+        tags[reader] = 0;
+      }
+      curr_state = tags[0] + tags[1] + tags[2] + tags[3];
     }
-    //if (mfrc522[reader].PICC_IsNewC
-    else {
-      tags[reader] = 0;
+    //for(uint8_t reader
+    Serial.print("Current State:");
+    Serial.print(curr_state);
+    // delay(100);
+    if (prev_state != curr_state) {
+      if ((curr_state - prev_state) == 3 || (curr_state - prev_state) == -3 || curr_state == 3) {
+          detected_toy = " CAT";
+          // void neopixel();
+        }
+      else if ((curr_state - prev_state) == 33 || (curr_state - prev_state) == -33 || curr_state == 33) {
+          detected_toy = " DOG";
+          // void neopixel();
+        }
+      else if ((curr_state - prev_state) == 140 || (curr_state - prev_state) == -140 || curr_state == 140) {
+          detected_toy = " DUCK";
+          // void neopixel();
+        }
+
     }
-    curr_state = tags[0] + tags[1] + tags[2] + tags[3];
-  }
-  //for(uint8_t reader
-  Serial.print("Current State:");
-  Serial.print(curr_state);
-  // delay(100);
-  if(prev_state != curr_state){
-    if ((curr_state - prev_state) == 3 || (curr_state - prev_state) == -3 || curr_state == 3) {
-        animal = " cat";
-        void neopixel ();
-      }
-    else if ((curr_state - prev_state) == 33 || (curr_state - prev_state) == -33 || curr_state == 33) {
-        animal = " dog";
-        void neopixel ();
-      }
-    else if ((curr_state - prev_state) == 140 || (curr_state - prev_state) == -140 || curr_state == 140) {
-        animal = " duck";
-        void neopixel ();
-      }
 
-  }
-
-  if(curr_state < prev_state)
-  {
-    animal = "toy removed";
-    pixels.clear();
-  }
-  Serial.println(animal);
-  delay(200);
-}
-
-void neopixel ()
-{
-  pixels.clear(); // Set all pixel colors to 'off'
-
-  // The first NeoPixel in a strand is #0, second is 1, all the way up
-  // to the count of pixels minus one.
-  for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
-
-    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
-    // Here we're using a moderately bright green color:
-    pixels.setPixelColor(j, pixels.Color(0, 150, 0));
-
-    pixels.show();   // Send the updated pixel colors to the hardware.
-
-    delay(DELAYVAL); // Pause before next pass through loop
-  }
-for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
-
-    // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
-    // Here we're using a moderately bright green color:
-    pixels.setPixelColor(j, pixels.Color(0, 0, 0));
-
-    pixels.show();   // Send the updated pixel colors to the hardware.
-
-    delay(DELAYVAL); // Pause before next pass through loop
+    if (curr_state < prev_state)
+    {
+      detected_toy = " TOY_REMOVED";
+      Pixels.clear();
+    }
+    Serial.println(detected_toy);
+    if (correct_toy == detected_toy) {
+      neopixel();
+      bluetooth.print("TRUE");
+    }
+    delay(200);
   }
 }
