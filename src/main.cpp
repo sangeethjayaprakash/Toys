@@ -57,8 +57,8 @@ Adafruit_NeoPixel pixels(NUMPIXELS, PIN, NEO_RGBW+ NEO_KHZ800);
 
 byte ssPins[] = {SS_1_PIN, SS_2_PIN, SS_3_PIN, SS_4_PIN};
 byte tags[NO_OF_READERS];
-byte state1 = 0;
-byte state2 = 0;
+byte prev_state = 0;
+byte curr_state = 0;
 String animal = "\0";
 
 MFRC522 mfrc522[NO_OF_READERS];   // Create MFRC522 instance.
@@ -97,9 +97,8 @@ void setup() {
    Main loop.
 */
 void loop() {
-  state1=state2;
+  prev_state = curr_state;
   for (uint8_t reader = 0; reader < NO_OF_READERS; reader++){
- 
     mfrc522[reader].PCD_Init();
     if (mfrc522[reader].PICC_IsNewCardPresent() && mfrc522[reader].PICC_ReadCardSerial()) {
       tags[reader] = dump_byte_array(mfrc522[reader].uid.uidByte, mfrc522[reader].uid.size);
@@ -113,55 +112,45 @@ void loop() {
     //if (mfrc522[reader].PICC_IsNewC
     else {
       tags[reader] = 0;
-
-
-    } //for(uint8_t reader
-
-    state2 = tags[0] + tags[1] + tags[2] + tags[3];
-
+    }
+    curr_state = tags[0] + tags[1] + tags[2] + tags[3];
   }
-      Serial.print("Current State:");
-    Serial.print(state2);
-//    delay(100);
-  if(state1 != state2){
-    if ( (state2-state1)==3||(state2-state1)==-3 || state2 == 3)
-//    Serial.println("cat");
-      {
+  //for(uint8_t reader
+  Serial.print("Current State:");
+  Serial.print(curr_state);
+  // delay(100);
+  if(prev_state != curr_state){
+    if ((curr_state - prev_state) == 3 || (curr_state - prev_state) == -3 || curr_state == 3) {
         animal = " cat";
         void neopixel ();
       }
-    else if ( (state2-state1)==33||(state2-state1)==-33 || state2 == 33)
-//    Serial.println("dog");
-      {
+    else if ((curr_state - prev_state) == 33 || (curr_state - prev_state) == -33 || curr_state == 33) {
         animal = " dog";
         void neopixel ();
-        
       }
-     else if ( (state2-state1)==140||(state2-state1)==-140 || state2 == 140)
-//    Serial.println("duck");
-      {
+    else if ((curr_state - prev_state) == 140 || (curr_state - prev_state) == -140 || curr_state == 140) {
         animal = " duck";
         void neopixel ();
       }
-     
+
   }
-  
-  if(state2 < state1)
+
+  if(curr_state < prev_state)
   {
-    animal="toy removed";
-      pixels.clear();
+    animal = "toy removed";
+    pixels.clear();
   }
- Serial.println(animal);   
-delay(200);
+  Serial.println(animal);
+  delay(200);
 }
 
 void neopixel ()
 {
-   pixels.clear(); // Set all pixel colors to 'off'
+  pixels.clear(); // Set all pixel colors to 'off'
 
   // The first NeoPixel in a strand is #0, second is 1, all the way up
   // to the count of pixels minus one.
-  for(int j=0; j<NUMPIXELS; j++) { // For each pixel...
+  for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
 
     // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
     // Here we're using a moderately bright green color:
@@ -170,8 +159,8 @@ void neopixel ()
     pixels.show();   // Send the updated pixel colors to the hardware.
 
     delay(DELAYVAL); // Pause before next pass through loop
-}
-for(int j=0; j<NUMPIXELS; j++) { // For each pixel...
+  }
+for(int j = 0; j < NUMPIXELS; j++) { // For each pixel...
 
     // pixels.Color() takes RGB values, from 0,0,0 up to 255,255,255
     // Here we're using a moderately bright green color:
@@ -180,5 +169,5 @@ for(int j=0; j<NUMPIXELS; j++) { // For each pixel...
     pixels.show();   // Send the updated pixel colors to the hardware.
 
     delay(DELAYVAL); // Pause before next pass through loop
-}
+  }
 }
