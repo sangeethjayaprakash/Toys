@@ -64,8 +64,8 @@ byte ssPins[] = {
 byte tags[NO_OF_READERS];
 byte prev_state = 0;
 byte curr_state = 0;
-String detected_toy ="\0";
-String correct_toy ="\0";
+String detected_toy = "\0";
+String correct_toy = "\0";
 
 MFRC522 mfrc522[NO_OF_READERS];   // Create MFRC522 instance.
 
@@ -124,36 +124,30 @@ void setup() {
 }
 
 void loop() {
-  if (bluetooth.available())
-  {
-    correct_toy="\0";
+  if (bluetooth.available()) {
+    correct_toy = "\0";
     while (bluetooth.available()) {
-         c=bluetooth.read();
-     if  (c == '#') {
-  break;
-}
-   
-      correct_toy+=c;
-    
+      c =bluetooth.read();
+      if (c == '#') {
+        break;
+      }
+      correct_toy += c;
     }
   }
-
   correct_toy.trim();
- if (correct_toy.length()>0){
-  
-  Serial.println(correct_toy.length());
-  bluetooth.println(correct_toy.length());
+  if (correct_toy.length()>0) {
+    Serial.println(correct_toy.length());
+    bluetooth.println(correct_toy.length());
     bluetooth.println(correct_toy);
-   
- }
+  }
 //  if (correct_toy=="CAT")
 //    {
 //    neopixel();
 //    Serial.println(correct_toy);
- 
+
 
 //  while(!bluetooth.available()&&correct_toy=='\0');
-  
+
 //  correct_toy = (char)bluetooth.read();
 //  Serial.println(correct_toy);
 //  bluetooth.println(correct_toy);
@@ -207,7 +201,7 @@ void loop() {
     Serial.println(correct_toy);
 //  Serial.print("\t");
 //  Serial.println(correct_toy);
-  if (detected_toy==correct_toy) {
+  if (detected_toy == correct_toy) {
     Serial.print("Correct toy Check: ");
     Serial.println(correct_toy);
     neopixel();
